@@ -1,0 +1,40 @@
+name: BookOrbit
+slug: bookorbit
+description: BookOrbit self-hosted ebook, audiobook, comic and PDF library server for Home Assistant OS.
+version: "3.1.0-ha1"
+url: https://github.com/russellstokes-ai/book-orbit-HA
+arch:
+  - aarch64
+  - amd64
+startup: services
+boot: auto
+init: false
+webui: http://[HOST]:[PORT:3000]
+watchdog: http://[HOST]:[PORT:3000]/api/v1/health
+panel_icon: mdi:book-open-page-variant
+ports:
+  3000/tcp: 3000
+ports_description:
+  3000/tcp: BookOrbit web interface and API
+map:
+  - media:rw
+  - share:rw
+  - backup:ro
+options:
+  app_url: http://homeassistant.local:3000
+  library_browse_root: /media
+  setup_token: ""
+  puid: 0
+  pgid: 0
+  node_memory_mb: 1536
+  log_level: info
+  trust_proxy: false
+schema:
+  app_url: url
+  library_browse_root: str
+  setup_token: password?
+  puid: int
+  pgid: int
+  node_memory_mb: int
+  log_level: list(fatal|error|warn|info|debug|trace)
+  trust_proxy: bool
