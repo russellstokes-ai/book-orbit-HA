@@ -1,0 +1,119 @@
+name: Watch BookOrbit releases
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: bookorbit-upstream-watch
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check latest upstream release
+        id: versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          latest="$(gh api repos/bookorbit/bookorbit/releases/latest --jq '.tag_name' | sed 's/^v//')"
+          current="$(sed -n 's/^FROM ghcr\.io\/bookorbit\/bookorbit:\(.*\)$/\1/p' bookorbit/Dockerfile | head -n1)"
+          test -n "$latest"
+          test -n "$current"
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+          if [ "$latest" = "$current" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Already current at BookOrbit $current"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "BookOrbit update available: $current -> $latest"
+          fi
+
+      - name: Prepare version bump
+        if: steps.versions.outputs.changed == 'true'
+        env:
+          CURRENT: ${{ steps.versions.outputs.current }}
+          LATEST: ${{ steps.versions.outputs.latest }}
+        run: |
+          set -eu
+          sed -i "s|FROM ghcr.io/bookorbit/bookorbit:$CURRENT|FROM ghcr.io/bookorbit/bookorbit:$LATEST|" bookorbit/Dockerfile
+          sed -i -E "s|^version: \"[^\"]+\"|version: \"$LATEST-ha1\"|" bookorbit/config.yaml
+          sed -i "s/BookOrbit: \*\*$CURRENT\*\*/BookOrbit: **$LATEST**/" README.md
+          sed -i "s/BookOrbit $CURRENT/BookOrbit $LATEST/g" bookorbit/README.md
+          sed -i "s/bookorbit:$CURRENT/bookorbit:$LATEST/g" bookorbit/README.md
+
+      - name: Validate wrapper
+        if: steps.versions.outputs.changed == 'true'
+        run: |
+          set -eu
+          sh -n bookorbit/run.sh
+          python -m pip install --quiet pyyaml
+          python - <<'PY'
+          import pathlib, yaml
+          for p in [pathlib.Path('repository.yaml'), pathlib.Path('bookorbit/config.yaml')]:
+              with p.open('r', encoding='utf-8') as f:
+                  yaml.safe_load(f)
+              print('OK', p)
+          PY
+
+      - name: Build updated add-on
+        if: steps.versions.outputs.changed == 'true'
+        run: docker build --pull --tag bookorbit-ha-upstream-test ./bookorbit
+
+      - name: Push update branch
+        if: steps.versions.outputs.changed == 'true'
+        id: push
+        env:
+          LATEST: ${{ steps.versions.outputs.latest }}
+        run: |
+          set -eu
+          branch="upstream/bookorbit-$LATEST"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$branch"
+          git add bookorbit/Dockerfile bookorbit/config.yaml README.md bookorbit/README.md
+          git commit -m "Update BookOrbit to $LATEST"
+          git push --force origin "HEAD:refs/heads/$branch"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+      - name: Open update pull request
+        if: steps.versions.outputs.changed == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LATEST: ${{ steps.versions.outputs.latest }}
+          CURRENT: ${{ steps.versions.outputs.current }}
+          BRANCH: ${{ steps.push.outputs.branch }}
+        run: |
+          set -eu
+          existing="$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            echo "Update PR #$existing already exists."
+            exit 0
+          fi
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "Update BookOrbit to $LATEST" \
+            --body "Automated upstream BookOrbit update from **$CURRENT** to **$LATEST**. The Home Assistant wrapper YAML and shell syntax were validated and the updated add-on container built successfully before this PR was opened. Review the upstream BookOrbit release notes before merging because database/application migrations can still require runtime testing."
+
+      - name: Summary
+        run: |
+          if [ "${{ steps.versions.outputs.changed }}" = "true" ]; then
+            echo "BookOrbit ${{ steps.versions.outputs.current }} -> ${{ steps.versions.outputs.latest }} prepared and validated." >> "$GITHUB_STEP_SUMMARY"
+            echo "Update branch: ${{ steps.push.outputs.branch }}" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "BookOrbit is already current at ${{ steps.versions.outputs.current }}." >> "$GITHUB_STEP_SUMMARY"
+          fi
