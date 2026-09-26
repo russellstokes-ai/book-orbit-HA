@@ -71,9 +71,11 @@ LIBRARY_BROWSE_ROOT="$(json_string library_browse_root '/media')"
 CONFIGURED_SETUP_TOKEN="$(json_string setup_token '')"
 PUID="$(json_number puid 0)"
 PGID="$(json_number pgid 0)"
-NODE_MAX_OLD_SPACE_SIZE="$(json_number node_memory_mb 1536)"
+NODE_MAX_OLD_SPACE_SIZE="$(json_number node_memory_mb 1024)"
 LOG_LEVEL="$(json_string log_level 'info')"
 TRUST_PROXY="$(json_bool trust_proxy false)"
+LOW_MEMORY_MODE="$(json_bool low_memory_mode true)"
+SAFE_SCAN_MB="$(json_number large_file_safe_mb 25)"
 
 if [ -n "$CONFIGURED_SETUP_TOKEN" ]; then
   SETUP_BOOTSTRAP_TOKEN="$CONFIGURED_SETUP_TOKEN"
@@ -84,6 +86,9 @@ fi
 export APP_URL CLIENT_URL="$APP_URL"
 export LIBRARY_BROWSE_ROOT
 export PUID PGID NODE_MAX_OLD_SPACE_SIZE LOG_LEVEL TRUST_PROXY
+export BOOKORBIT_HA_LOW_MEMORY_MODE="$LOW_MEMORY_MODE"
+export BOOKORBIT_HA_SAFE_SCAN_MB="$SAFE_SCAN_MB"
+export NODE_OPTIONS="--require=/app/ha-low-memory-hook.cjs ${NODE_OPTIONS:-}"
 export POSTGRES_PASSWORD JWT_SECRET PODCAST_ENCRYPTION_KEY SETUP_BOOTSTRAP_TOKEN
 export DATABASE_URL="postgres://bookorbit:${POSTGRES_PASSWORD}@127.0.0.1:5432/bookorbit"
 export BOOKORBIT_FIX_PERMISSIONS=true
@@ -161,6 +166,7 @@ trap shutdown INT TERM EXIT
 
 log "Starting BookOrbit 3.1.0 at $APP_URL"
 log "Library browser root: $LIBRARY_BROWSE_ROOT"
+log "Low-memory scan mode: $LOW_MEMORY_MODE (large-file threshold: ${SAFE_SCAN_MB} MB; Node heap: ${NODE_MAX_OLD_SPACE_SIZE} MB)"
 if [ -z "$CONFIGURED_SETUP_TOKEN" ]; then
   log "First-run setup token: $SETUP_BOOTSTRAP_TOKEN"
   log "You only need this token when creating the first BookOrbit administrator account."
