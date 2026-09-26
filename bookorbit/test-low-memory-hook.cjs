@@ -3,8 +3,11 @@
 const fs = require('fs');
 
 async function main() {
-  fs.truncateSync('/tmp/ha-large.pdf', 30 * 1024 * 1024);
-  fs.truncateSync('/tmp/ha-large.cbr', 30 * 1024 * 1024);
+  for (const path of ['/tmp/ha-large.pdf', '/tmp/ha-large.cbr']) {
+    const fd = fs.openSync(path, 'w');
+    fs.closeSync(fd);
+    fs.truncateSync(path, 30 * 1024 * 1024);
+  }
 
   const pdf = require('/app/dist/modules/metadata/lib/pdf-parser.js');
   const cbx = require('/app/dist/modules/metadata/lib/cbz-metadata.js');
