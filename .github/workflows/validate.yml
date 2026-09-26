@@ -27,3 +27,29 @@ jobs:
           PY
       - name: Build add-on container
         run: docker build --pull --tag bookorbit-ha-test ./bookorbit
+
+      - name: Runtime smoke test
+        run: |
+          set -eu
+          docker run -d --name bookorbit-ha-smoke -p 13000:3000 bookorbit-ha-test
+          ready=false
+          for i in $(seq 1 60); do
+            if curl --fail --silent --show-error http://127.0.0.1:13000/api/v1/health >/dev/null; then
+              ready=true
+              break
+            fi
+            if ! docker inspect -f '{{.State.Running}}' bookorbit-ha-smoke 2>/dev/null | grep -q true; then
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" != "true" ]; then
+            echo "BookOrbit did not become healthy."
+            docker logs bookorbit-ha-smoke || true
+            exit 1
+          fi
+          docker logs bookorbit-ha-smoke
+
+      - name: Stop smoke-test container
+        if: always()
+        run: docker rm -f bookorbit-ha-smoke >/dev/null 2>&1 || true
