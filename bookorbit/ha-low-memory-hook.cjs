@@ -120,6 +120,17 @@ async function lowMemoryPdf(path, options) {
 }
 
 const originalLoad = Module._load;
+const wrappedModules = new Map();
+
+function markPatched(exportsObject) {
+  Object.defineProperty(exportsObject, '__haLowMemoryPatched', {
+    value: true,
+    enumerable: false,
+    configurable: false,
+    writable: false,
+  });
+  return exportsObject;
+}
 
 Module._load = function patchedLoad(request, parent, isMain) {
   let resolved = '';
@@ -132,38 +143,62 @@ Module._load = function patchedLoad(request, parent, isMain) {
   const loaded = originalLoad.apply(this, arguments);
   if (!enabled || !loaded || typeof loaded !== 'object') return loaded;
 
-  if (isPath(resolved, '/modules/metadata/lib/pdf-parser.js') && typeof loaded.parsePdfFile === 'function' && !loaded.__haLowMemoryPatched) {
+  if (wrappedModules.has(resolved)) return wrappedModules.get(resolved);
+
+  if (isPath(resolved, '/modules/metadata/lib/pdf-parser.js') && typeof loaded.parsePdfFile === 'function') {
     const upstream = loaded.parsePdfFile;
-    loaded.parsePdfFile = async function haSafeParsePdfFile(path, options = {}) {
-      if (!(await isLarge(path))) return upstream(path, options);
-      return lowMemoryPdf(path, options);
+    const wrapped = {
+      ...loaded,
+      parsePdfFile: async function haSafeParsePdfFile(path, options = {}) {
+        if (!(await isLarge(path))) return upstream(path, options);
+        return lowMemoryPdf(path, options);
+      },
     };
-    Object.defineProperty(loaded, '__haLowMemoryPatched', { value: true });
+    markPatched(wrapped);
+    wrappedModules.set(resolved, wrapped);
+    return wrapped;
   }
 
-  if (isPath(resolved, '/modules/metadata/lib/cbz-metadata.js') && !loaded.__haLowMemoryPatched) {
-    for (const key of ['extractCbrMetadata', 'extractCb7Metadata']) {
-      if (typeof loaded[key] !== 'function') continue;
-      const upstream = loaded[key];
-      loaded[key] = async function haSafeArchiveMetadata(path, ...args) {
+  if (isPath(resolved, '/modules/metadata/lib/cbz-metadata.js')) {
+    const wrapped = { ...loaded };
+
+    if (typeof loaded.extractCbrMetadata === 'function') {
+      const upstreamCbr = loaded.extractCbrMetadata;
+      wrapped.extractCbrMetadata = async function haSafeCbrMetadata(path, ...args) {
         if (await isLarge(path)) return null;
-        return upstream(path, ...args);
+        return upstreamCbr(path, ...args);
       };
     }
-    Object.defineProperty(loaded, '__haLowMemoryPatched', { value: true });
+
+    if (typeof loaded.extractCb7Metadata === 'function') {
+      const upstreamCb7 = loaded.extractCb7Metadata;
+      wrapped.extractCb7Metadata = async function haSafeCb7Metadata(path, ...args) {
+        if (await isLarge(path)) return null;
+        return upstreamCb7(path, ...args);
+      };
+    }
+
+    markPatched(wrapped);
+    wrappedModules.set(resolved, wrapped);
+    return wrapped;
   }
 
   for (const [suffix, key] of [
     ['/modules/metadata/lib/cover-cbr.js', 'extractCbrCover'],
     ['/modules/metadata/lib/cover-cb7.js', 'extractCb7Cover'],
   ]) {
-    if (isPath(resolved, suffix) && typeof loaded[key] === 'function' && !loaded.__haLowMemoryPatched) {
+    if (isPath(resolved, suffix) && typeof loaded[key] === 'function') {
       const upstream = loaded[key];
-      loaded[key] = async function haSafeArchiveCover(path, ...args) {
-        if (await isLarge(path)) return null;
-        return upstream(path, ...args);
+      const wrapped = {
+        ...loaded,
+        [key]: async function haSafeArchiveCover(path, ...args) {
+          if (await isLarge(path)) return null;
+          return upstream(path, ...args);
+        },
       };
-      Object.defineProperty(loaded, '__haLowMemoryPatched', { value: true });
+      markPatched(wrapped);
+      wrappedModules.set(resolved, wrapped);
+      return wrapped;
     }
   }
 
