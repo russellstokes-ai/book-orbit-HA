@@ -1,7 +1,7 @@
 name: BookOrbit
 slug: bookorbit
 description: BookOrbit self-hosted ebook, audiobook, comic and PDF library server for Home Assistant OS.
-version: "3.1.0-ha4"
+version: "3.1.0-ha5"
 url: https://github.com/russellstokes-ai/book-orbit-HA
 arch:
   - aarch64
