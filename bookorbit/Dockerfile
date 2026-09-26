@@ -10,7 +10,8 @@ RUN apk add --no-cache \
       postgresql-pgvector
 
 COPY run.sh /run.sh
-RUN chmod 0755 /run.sh
+COPY ha-low-memory-hook.cjs /app/ha-low-memory-hook.cjs
+RUN chmod 0755 /run.sh && chmod 0644 /app/ha-low-memory-hook.cjs
 
 ENV PGDATA=/data/postgres/pgdata \
     APP_DATA_PATH=/data/bookorbit-app \
@@ -20,7 +21,9 @@ ENV PGDATA=/data/postgres/pgdata \
     POSTGRES_DB=bookorbit \
     HOST=0.0.0.0 \
     PORT=3000 \
-    NODE_ENV=production
+    NODE_ENV=production \
+    BOOKORBIT_HA_LOW_MEMORY_MODE=true \
+    BOOKORBIT_HA_SAFE_SCAN_MB=25
 
 EXPOSE 3000
 
