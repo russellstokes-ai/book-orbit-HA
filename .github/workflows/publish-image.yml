@@ -34,6 +34,66 @@ jobs:
           )"
           echo "value=$version" >> "$GITHUB_OUTPUT"
 
+      - name: Build validation image
+        run: docker build --pull --tag bookorbit-ha-publish-test ./bookorbit
+
+      - name: Verify Pi-safe large-file hook
+        run: |
+          set -eu
+          docker run --rm --entrypoint sh bookorbit-ha-publish-test -c '
+            set -eu
+            truncate -s 30M /tmp/ha-large.pdf
+            truncate -s 30M /tmp/ha-large.cbr
+            NODE_OPTIONS="--require=/app/ha-low-memory-hook.cjs" \
+            BOOKORBIT_HA_LOW_MEMORY_MODE=true \
+            BOOKORBIT_HA_SAFE_SCAN_MB=25 \
+            node - <<"NODE"
+            (async () => {
+              const pdf = require("/app/dist/modules/metadata/lib/pdf-parser.js");
+              const cbx = require("/app/dist/modules/metadata/lib/cbz-metadata.js");
+              const cbrCover = require("/app/dist/modules/metadata/lib/cover-cbr.js");
+              if (!pdf.__haLowMemoryPatched) throw new Error("PDF parser hook not attached");
+              if (!cbx.__haLowMemoryPatched) throw new Error("comic metadata hook not attached");
+              if (!cbrCover.__haLowMemoryPatched) throw new Error("CBR cover hook not attached");
+              const parsed = await pdf.parsePdfFile("/tmp/ha-large.pdf");
+              if (!parsed || parsed.coverBuffer !== null) throw new Error("large PDF safe path failed");
+              const meta = await cbx.extractCbrMetadata("/tmp/ha-large.cbr");
+              const cover = await cbrCover.extractCbrCover("/tmp/ha-large.cbr");
+              if (meta !== null || cover !== null) throw new Error("large CBR safe path failed");
+              console.log("Pi-safe large-file hook verified");
+            })().catch((err) => {
+              console.error(err);
+              process.exit(1);
+            });
+            NODE
+          '
+
+      - name: Runtime smoke test
+        run: |
+          set -eu
+          docker run -d --name bookorbit-ha-publish-smoke -p 13001:3000 bookorbit-ha-publish-test
+          ready=false
+          for i in $(seq 1 60); do
+            if curl --fail --silent --show-error http://127.0.0.1:13001/api/v1/health >/dev/null; then
+              ready=true
+              break
+            fi
+            if ! docker inspect -f '{{.State.Running}}' bookorbit-ha-publish-smoke 2>/dev/null | grep -q true; then
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" != "true" ]; then
+            echo "BookOrbit did not become healthy."
+            docker logs bookorbit-ha-publish-smoke || true
+            exit 1
+          fi
+          docker logs bookorbit-ha-publish-smoke
+
+      - name: Stop publish smoke-test container
+        if: always()
+        run: docker rm -f bookorbit-ha-publish-smoke >/dev/null 2>&1 || true
+
       - uses: docker/setup-qemu-action@v3
 
       - uses: docker/setup-buildx-action@v3
