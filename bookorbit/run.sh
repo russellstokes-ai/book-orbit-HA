@@ -106,10 +106,14 @@ if [ ! -s "$PGDATA/PG_VERSION" ]; then
 fi
 
 log "Starting PostgreSQL..."
+POSTGRES_LOG=/data/postgres/postgresql.log
+: > "$POSTGRES_LOG"
+chown postgres:postgres "$POSTGRES_LOG"
 su-exec postgres "$PG_BIN/pg_ctl" \
   -D "$PGDATA" \
+  -l "$POSTGRES_LOG" \
   -o "-c listen_addresses=127.0.0.1 -c unix_socket_directories=$PGSOCKET -p 5432" \
-  -w start >/dev/null
+  -w -t 60 start >/dev/null
 
 if ! su-exec postgres "$PG_BIN/psql" -h "$PGSOCKET" -U bookorbit -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='bookorbit'" | grep -q 1; then
   log "Creating BookOrbit database..."
@@ -122,6 +126,27 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE EXTENSION IF NOT EXISTS unaccent;
 CREATE EXTENSION IF NOT EXISTS vector;
 SQL
+
+log "Waiting for PostgreSQL TCP connections..."
+db_ready=false
+attempt=1
+while [ "$attempt" -le 30 ]; do
+  if PGPASSWORD="$POSTGRES_PASSWORD" "$PG_BIN/pg_isready" -h 127.0.0.1 -p 5432 -U bookorbit -d bookorbit >/dev/null 2>&1 &&
+     PGPASSWORD="$POSTGRES_PASSWORD" "$PG_BIN/psql" -h 127.0.0.1 -p 5432 -U bookorbit -d bookorbit -tAc "SELECT 1" 2>/dev/null | grep -q 1; then
+    db_ready=true
+    break
+  fi
+  sleep 2
+  attempt=$((attempt + 1))
+done
+
+if [ "$db_ready" != "true" ]; then
+  log "PostgreSQL did not become ready for BookOrbit TCP connections."
+  log "Last PostgreSQL log lines:"
+  tail -n 80 "$POSTGRES_LOG" >&2 || true
+  exit 1
+fi
+log "PostgreSQL is ready."
 
 shutdown() {
   log "Stopping BookOrbit..."
@@ -142,12 +167,40 @@ if [ -z "$CONFIGURED_SETUP_TOKEN" ]; then
 fi
 
 cd /app
-sh /app/entrypoint.sh &
-APP_PID=$!
-set +e
-wait "$APP_PID"
-APP_STATUS=$?
-set -e
+APP_STATUS=1
+APP_ATTEMPT=1
+while [ "$APP_ATTEMPT" -le 3 ]; do
+  log "BookOrbit startup attempt $APP_ATTEMPT of 3..."
+  sh /app/entrypoint.sh &
+  APP_PID=$!
+  set +e
+  wait "$APP_PID"
+  APP_STATUS=$?
+  set -e
+
+  if [ "$APP_STATUS" -eq 0 ]; then
+    break
+  fi
+
+  if ! su-exec postgres "$PG_BIN/pg_ctl" -D "$PGDATA" status >/dev/null 2>&1; then
+    log "PostgreSQL stopped unexpectedly."
+    tail -n 100 "$POSTGRES_LOG" >&2 || true
+    break
+  fi
+
+  if [ "$APP_ATTEMPT" -lt 3 ]; then
+    log "BookOrbit exited with status $APP_STATUS; database is still healthy. Retrying in 3 seconds..."
+    sleep 3
+  fi
+  APP_ATTEMPT=$((APP_ATTEMPT + 1))
+done
+
+if [ "$APP_STATUS" -ne 0 ]; then
+  log "BookOrbit failed to start after $APP_ATTEMPT attempt(s)."
+  log "Last PostgreSQL log lines:"
+  tail -n 100 "$POSTGRES_LOG" >&2 || true
+fi
+
 trap - INT TERM EXIT
 shutdown
 exit "$APP_STATUS"
