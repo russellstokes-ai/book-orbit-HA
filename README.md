@@ -6,7 +6,7 @@ Home Assistant OS add-on packaging for the upstream BookOrbit self-hosted readin
 
 Current package:
 
-- BookOrbit: **3.1.0**
+- BookOrbit: **3.2.0**
 - Home Assistant architectures: **aarch64**, **amd64**
 - Web/API port: **3000**
 - Database: **PostgreSQL 18 + pgvector**, embedded inside the add-on container

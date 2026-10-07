@@ -1,12 +1,12 @@
 # BookOrbit Home Assistant add-on
 
-This add-on packages the upstream **BookOrbit 3.1.0** server for Home Assistant OS.
+This add-on packages the upstream **BookOrbit 3.2.0** server for Home Assistant OS.
 
 It is an independent community wrapper and is **not affiliated with or endorsed by the BookOrbit project**.
 
 ## What it contains
 
-- Upstream `ghcr.io/bookorbit/bookorbit:3.1.0` application image
+- Upstream `ghcr.io/bookorbit/bookorbit:3.2.0` application image
 - PostgreSQL 18 in the same Home Assistant add-on container
 - `pgvector`, `uuid-ossp`, `pg_trgm`, and `unaccent` database extensions
 - Persistent application and database data under the Home Assistant add-on `/data` directory
