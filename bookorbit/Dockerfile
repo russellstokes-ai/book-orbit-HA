@@ -1,4 +1,4 @@
-FROM ghcr.io/bookorbit/bookorbit:3.1.0
+FROM ghcr.io/bookorbit/bookorbit:3.4.0
 
 USER root
 
