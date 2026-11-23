@@ -1,0 +1,92 @@
+name: Flipper Phone direct touchscreen proof (isolated)
+on:
+  push:
+    branches: [experiment/flipper-phone-feasibility-20261123]
+    paths:
+      - .github/workflows/flipper-phone-touch.yml
+permissions:
+  contents: read
+
+jobs:
+  touchscreen-end-to-end:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout isolated test files
+        uses: actions/checkout@v4
+      - name: Checkout genuine Flipper source (untouched upstream)
+        uses: actions/checkout@v4
+        with:
+          repository: flipperdevices/flipctl-slint
+          ref: dev
+          path: flipctl
+          persist-credentials: false
+      - name: Rust 1.92
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.92.0'
+      - name: Direct touch adapter unit tests
+        run: node --test flipper-phone-poc/touch-adapter.test.cjs
+      - name: Overlay original browser frontend with tiny touch adapter, only in runner
+        shell: bash
+        run: |
+          set -eu
+          python3 - <<'PY'
+          from pathlib import Path
+          page=Path("flipper-phone-poc/phone.html").read_text()
+          touch=Path("flipper-phone-poc/touch-adapter.js").read_text()
+          marker="/* FLIPPER_TOUCH_ADAPTER_INLINE */"
+          assert page.count(marker)==1
+          upstream=Path("flipctl/crates/flipper-ui/src/remote/page.html")
+          original=upstream.read_text()
+          assert 'device.png' in original and 'canvas' in original
+          upstream.write_text(page.replace(marker,touch))
+          print("Only temporary browser page replaced; genuine Rust, Slint, fonts, icons unchanged")
+          PY
+      - name: Build real Flipper One service with original Rust/Slint source
+        working-directory: flipctl
+        run: cargo build --locked -p flipctl --features device,slint,remote
+      - name: Start live headless Flipper service
+        working-directory: flipctl
+        shell: bash
+        run: |
+          set -euxo pipefail
+          ./target/debug/flipctl --headless --remote 127.0.0.1:8899 --assets crates/flipper-ui/assets/remote > "$RUNNER_TEMP/flipper-live.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/flipper.pid"
+          for n in $(seq 1 40); do
+            if curl --fail --silent http://127.0.0.1:8899/ -o /tmp/live-touch-page.html; then
+              grep -q "FLIPPER PHONE" /tmp/live-touch-page.html
+              echo "Live genuine FlipCTL now serves touch page"
+              exit 0
+            fi
+            kill -0 "$(cat "$RUNNER_TEMP/flipper.pid")"
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/flipper-live.log"
+          exit 1
+      - name: Install browser automation against system Chrome
+        run: |
+          which google-chrome
+          google-chrome --version
+          npm install --prefix flipper-phone-poc --no-save --no-audit --no-fund playwright-core@1.58.2
+      - name: Tap real menu item and verify original framebuffer changed
+        run: node flipper-phone-poc/browser-smoke.mjs
+        env:
+          SCREENSHOT_OUT: flipper-phone-poc/flipper-live-touch.png
+      - name: Assert backend actually entered Network submenu
+        shell: bash
+        run: |
+          cat "$RUNNER_TEMP/flipper-live.log" | tail -60
+          grep -E "menu +Network|screen +menu" "$RUNNER_TEMP/flipper-live.log"
+          grep -q "menu           Network" "$RUNNER_TEMP/flipper-live.log"
+          echo "PASS: genuine Flipper input state machine selected Network"
+      - name: Archive screenshot and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flipper-touch-poc
+          path: |
+            flipper-phone-poc/flipper-live-touch.png
+            ${{ runner.temp }}/flipper-live.log
+          retention-days: 5
+          if-no-files-found: ignore
