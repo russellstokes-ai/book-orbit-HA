@@ -144,10 +144,19 @@
       if(!img.complete){
         await new Promise(resolve=>{img.onload=resolve;img.onerror=resolve;});
       }
-      dc.fillStyle="#ff9500";dc.fillRect(0,0,128,64);
+      dc.fillStyle="#ffffff";dc.fillRect(0,0,128,64);
       if(img.naturalWidth&&img.naturalHeight){
-        // Pure nearest-neighbour blit of unchanged stock PNG frames.
+        // Source pixels are preserved; only the 1-bit screen palette is
+        // converted from the original white/black PNG to Flipper amber/black.
         dc.drawImage(img,0,Math.floor((64-img.naturalHeight)/2));
+        const pixels=dc.getImageData(0,0,128,64);
+        for(let p=0;p<pixels.data.length;p+=4){
+          const v=pixels.data[p];
+          pixels.data[p]=v;
+          pixels.data[p+1]=Math.round(v*130/255);
+          pixels.data[p+2]=0;
+        }
+        dc.putImageData(pixels,0,0);
         dolphin.dataset.frame=String(tick+1);
         dolphin.dataset.animation=animation.name;
       }
@@ -218,6 +227,7 @@
   }
   loadStatus();
   setInterval(loadStatus,2500);
+  refreshState();
   setInterval(refreshState,1000);
   flipperStream((grey,x,y,w,h)=>{
     stream.draw(grey,x,y,w,h);
