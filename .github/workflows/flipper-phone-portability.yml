@@ -1,0 +1,79 @@
+name: Flipper Phone portability checks (isolated)
+
+on:
+  push:
+    branches:
+      - experiment/flipper-phone-feasibility-20261123
+    paths:
+      - .github/workflows/flipper-phone-portability.yml
+
+permissions:
+  contents: read
+
+jobs:
+  flipctl-portability:
+    name: Native build and render (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    steps:
+      - name: Check out public, authentic Flipper One UI
+        uses: actions/checkout@v4
+        with:
+          repository: flipperdevices/flipctl-slint
+          ref: dev
+          path: flipctl
+          persist-credentials: false
+      - name: Configure Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.92.0'
+      - name: Source identification
+        working-directory: flipctl
+        run: |
+          echo "source: https://github.com/flipperdevices/flipctl-slint"
+          git rev-parse HEAD
+          uname -m
+          rustc --version
+          cargo --version
+      - name: Verify Slint rendering and browser features
+        working-directory: flipctl
+        run: |
+          cargo test --locked -p flipper-ui --features screens --test render
+          cargo test --locked -p flipper-ui --features remote --test remote
+      - name: Build real FlipCTL without physical Flipper hardware
+        working-directory: flipctl
+        run: cargo build --locked -p flipctl --features slint
+      - name: Render authentic FlipCTL menu without device
+        working-directory: flipctl
+        run: |
+          cargo run --locked -p flipctl --features slint -- --png ../flipper-home-${{ matrix.arch }}.png --screen main
+          test -s ../flipper-home-${{ matrix.arch }}.png
+          file ../flipper-home-${{ matrix.arch }}.png
+      - name: Validate existing touch browser bridge
+        working-directory: flipctl
+        run: |
+          node --check crates/flipper-ui/src/remote/remote.js
+          python3 - <<'PY'
+          from pathlib import Path
+          js=Path('crates/flipper-ui/src/remote/remote.js').read_text()
+          assert all(x in js for x in ['pointerdown','pointerup','pointercancel','flipperSend','JSON.stringify({ key, down })'])
+          page=Path('crates/flipper-ui/src/remote/page.html').read_text()
+          assert "ZONES" in page and "min-width: 512px" in page
+          print('PASS: original browser touch events, input transport, and required phone layout changes identified')
+          PY
+      - name: Preserve verified source screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flipper-render-${{ matrix.arch }}
+          path: flipper-home-${{ matrix.arch }}.png
+          if-no-files-found: ignore
+          retention-days: 3
