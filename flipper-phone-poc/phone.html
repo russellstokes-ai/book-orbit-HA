@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Flipper Phone • Genuine FlipCTL Touch Prototype</title>
+<style>
+  :root{color-scheme:dark;--amber:#ff8200;--ink:#121212}
+  *{box-sizing:border-box}
+  body{margin:0;background:#0d0f13;color:var(--amber);font:600 16px monospace;display:flex;align-items:center;justify-content:center;min-height:100dvh}
+  main{display:flex;flex-direction:column;gap:12px;width:min(100%,440px);padding:20px 16px 36px;min-height:100dvh}
+  header{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid var(--amber);padding-bottom:12px}
+  h1{margin:0;font-size:20px;letter-spacing:.04em}
+  #panel{display:block;width:100%;height:auto;aspect-ratio:256/144;image-rendering:pixelated;background:var(--amber);border:3px solid var(--amber);touch-action:none}
+  .screenwrap{position:relative;margin-top:25px}
+  .screenwrap::before{content:"GENUINE FLIPCTL FRAMEBUFFER";position:absolute;top:-19px;font-size:10px;letter-spacing:.1em;opacity:.78}
+  .controls{display:flex;gap:12px}
+  button{flex:1;min-height:52px;background:var(--ink);border:2px solid var(--amber);color:var(--amber);font:inherit;border-radius:8px;touch-action:manipulation;cursor:pointer}
+  button:active,button.active{background:var(--amber);color:#000}
+  #status{color:#aaa;font-size:13px;min-height:20px}
+  .help{font-size:13px;line-height:1.5;opacity:.85}
+  .foot{margin-top:auto;border-top:1px solid #393939;padding-top:12px;font-size:12px;color:#999}
+</style>
+</head>
+<body>
+<main>
+  <header><h1>FLIPPER PHONE</h1><span id="connection">CONNECTING</span></header>
+  <div class="screenwrap"><canvas id="panel" width="256" height="144" role="img" aria-label="Live genuine FlipCTL screen. Tap menu rows directly."></canvas></div>
+  <div class="controls"><button id="open-menu" type="button">MENU</button><button id="back" type="button">BACK</button></div>
+  <div id="status" role="status">Tap MENU, then tap a row on the real Flipper screen</div>
+  <p class="help">Tap directly on items, or swipe vertically to scroll. No D-pad. The screen above is the original Flipper UI rendered live, not a replica.</p>
+  <p class="foot">Experimental touch front end • original assets and Rust/Slint UI unchanged • no Android</p>
+</main>
+<script src="remote.js"></script>
+<script>/* FLIPPER_TOUCH_ADAPTER_INLINE */</script>
+<script>
+  const canvas = document.getElementById("panel");
+  const statusEl = document.getElementById("status");
+  const indicator = document.getElementById("connection");
+  const ink = new GreyBlitter(canvas.getContext("2d"),256,144,[255,130,0]);
+  const post = async (key,down) => {
+    const res = await fetch("input", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({key,down})});
+    if(!res.ok) throw new Error("input failed HTTP "+res.status);
+  };
+  const adapter = FlipperPhoneTouch.createTouchAdapter(post);
+  const action = fn => Promise.resolve().then(fn).catch(e=>{statusEl.textContent=e.message;throw e});
+  document.getElementById("open-menu").addEventListener("click",()=>action(async()=>{
+    await adapter.openMenu(); statusEl.textContent="Tap a list item directly on the screen";
+  }));
+  document.getElementById("back").addEventListener("click",()=>action(()=>adapter.back()));
+  let startY=0;
+  canvas.addEventListener("pointerdown",ev=>{ev.preventDefault();startY=ev.clientY;});
+  canvas.addEventListener("pointerup",ev=>action(async()=>{
+    ev.preventDefault();
+    const dy=ev.clientY-startY;
+    if(Math.abs(dy)>24){await adapter.scroll(dy<0?1:-1);return;}
+    const row=adapter.rowFromPointer(ev.clientY,canvas.getBoundingClientRect());
+    if(row>=0){await adapter.tapMenuRow(row);statusEl.textContent="Selected row "+(row+1)+" using genuine Flipper navigation"; }
+  }));
+  flipperStream((grey,x,y,w,h)=>{
+    ink.draw(grey,x,y,w,h);
+    canvas.dataset.frames = String((Number(canvas.dataset.frames)||0)+1);
+  },(text,ok)=>{
+    indicator.textContent=text.toUpperCase();
+    indicator.style.color=ok?"#a0e8a1":"#ff8200";
+  });
+</script>
+</body>
+</html>
