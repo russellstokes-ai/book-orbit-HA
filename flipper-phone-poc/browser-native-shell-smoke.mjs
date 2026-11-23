@@ -47,6 +47,7 @@ try{
  assert.equal(await page.locator("#demoTag").isVisible(),true);
  assert.equal(await page.locator("#cellText").textContent(),"5G");
  assert.equal(await page.locator("#wifiText").textContent(),"Wi-Fi");
+ await page.waitForFunction(()=>document.querySelector("#runtimeStatus")?.textContent.includes("IDLE"),null,{timeout:9000});
  await page.screenshot({path:out+"/flipper-phone-native-desktop-demo-signals.png",fullPage:true});
  console.log("PASS: UI demo clearly labelled, not mistaken for actual phone signal");
 
@@ -78,12 +79,14 @@ try{
  assert(s.network_index>=0);
  await tapRow(s,s.network_index);
  s=await waitState(x=>x.screen==="menu"&&x.level===2,"original Network submenu");
+ await page.waitForFunction(()=>document.querySelector("#runtimeStatus")?.textContent.includes("LEVEL 2") && document.querySelector("#message")?.textContent.includes("Native menu opened"),null,{timeout:9000});
  await page.screenshot({path:out+"/flipper-phone-native-network.png",fullPage:true});
  await page.locator("#btnBack").tap();
  s=await waitState(x=>x.screen==="menu"&&x.level===1,"return from Network");
  assert(s.settings_index>=0);
  await tapRow(s,s.settings_index);
  await waitState(x=>x.screen==="menu"&&x.level===2,"original Settings submenu");
+ await page.waitForFunction(()=>document.querySelector("#runtimeStatus")?.textContent.includes("LEVEL 2") && document.querySelector("#message")?.textContent.includes("Native menu opened"),null,{timeout:9000});
  await page.screenshot({path:out+"/flipper-phone-native-settings.png",fullPage:true});
  assert.deepEqual(jsErrors,[],"No runtime JavaScript exceptions");
  console.log("PASS: genuine original Flipper One navigation + direct row taps + native Dolphin stays visible");
