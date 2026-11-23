@@ -1,0 +1,93 @@
+name: Flipper Phone state-aware touchscreen test
+on:
+  push:
+    branches: [experiment/flipper-phone-feasibility-20261123]
+    paths:
+      - .github/workflows/flipper-phone-state.yml
+      - flipper-phone-poc/**
+permissions:
+  contents: read
+
+jobs:
+  state-aware-touch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout isolated prototype files
+        uses: actions/checkout@v4
+      - name: Checkout pinned genuine Flipper source
+        uses: actions/checkout@v4
+        with:
+          repository: flipperdevices/flipctl-slint
+          ref: 258e19a1ead6e32f27c89f272d6ec92be986ad61
+          path: flipctl
+          persist-credentials: false
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.92.0'
+      - name: Unit test state-aware touch adapter
+        run: node --test flipper-phone-poc/touch-state.test.cjs
+      - name: Add test-only state endpoint and touch page to temporary upstream checkout
+        shell: bash
+        run: |
+          set -eu
+          python3 flipper-phone-poc/patch-navigation-state.py
+          python3 - <<'PY'
+          from pathlib import Path
+          page=Path("flipper-phone-poc/phone-state.html").read_text()
+          touch=Path("flipper-phone-poc/touch-state.js").read_text()
+          marker="/* FLIPPER_STATE_TOUCH_ADAPTER_INLINE */"
+          assert page.count(marker)==1
+          dest=Path("flipctl/crates/flipper-ui/src/remote/page.html")
+          assert 'device.png' in dest.read_text()
+          dest.write_text(page.replace(marker,touch))
+          print("Test-only backend state probe and front end installed on runner")
+          PY
+      - name: Compile genuine Flipper Rust/Slint UI with test state probe
+        working-directory: flipctl
+        run: cargo build --locked -p flipctl --features device,slint,remote
+      - name: Start genuine Flipper service without Flipper hardware
+        working-directory: flipctl
+        shell: bash
+        run: |
+          set -euxo pipefail
+          ./target/debug/flipctl --headless --remote 127.0.0.1:8899 --assets crates/flipper-ui/assets/remote > "$RUNNER_TEMP/flipper-state.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/flipper-state.pid"
+          for n in $(seq 1 50); do
+            if curl --fail --silent http://127.0.0.1:8899/state -o /tmp/flipper-state.json; then
+              python3 -m json.tool /tmp/flipper-state.json >/dev/null
+              curl --fail --silent http://127.0.0.1:8899/ | grep -q "FLIPPER PHONE"
+              echo "Authentic Flipper live touch and state service up"
+              exit 0
+            fi
+            kill -0 "$(cat "$RUNNER_TEMP/flipper-state.pid")"
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/flipper-state.log"; exit 1
+      - name: Prepare Chrome automation
+        run: |
+          which google-chrome
+          npm install --prefix flipper-phone-poc --no-save --no-audit --no-fund playwright-core@1.58.2
+      - name: Verify real menu selection, swipe, Back and submenu navigation
+        run: node flipper-phone-poc/browser-state-smoke.mjs
+      - name: Cross-check navigation against genuine process logs
+        shell: bash
+        run: |
+          set -eu
+          grep -q "menu           Network" "$RUNNER_TEMP/flipper-state.log"
+          grep -q "menu           Settings" "$RUNNER_TEMP/flipper-state.log"
+          grep -q "menu           back to" "$RUNNER_TEMP/flipper-state.log"
+          echo "PASS: original Flipper process observed actual Network, Back, Settings transitions"
+          cp "$RUNNER_TEMP/flipper-state.log" flipper-phone-poc/flipper-state.log
+      - name: Save screenshots and diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flipper-phone-state-v2
+          path: |
+            flipper-phone-poc/flipper-network-stateful.png
+            flipper-phone-poc/flipper-settings-stateful.png
+            flipper-phone-poc/flipper-state.log
+          retention-days: 5
+          if-no-files-found: ignore
