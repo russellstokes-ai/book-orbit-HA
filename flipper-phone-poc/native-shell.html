@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101114">
+<title>Flipper Phone • Native shell prototype</title>
+<style>
+:root{color-scheme:dark;--amber:#ff8200;--text:#f4f4f1;--mute:#9a9aa0;--line:#333334;--ink:#111216}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:#0b0c0e;color:var(--text)}
+body{font:500 14px/1.35 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+main{width:min(100%,420px);min-height:100dvh;margin:0 auto;padding:12px 16px max(14px,env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:10px;background:linear-gradient(180deg,#14161b,#0b0c0f 85%)}
+.statusbar{display:flex;align-items:center;justify-content:space-between;gap:6px;height:26px;padding:0 2px;font:750 11px/1 ui-monospace,SFMono-Regular,Consolas,monospace}
+.statusleft,.statusright,.signals,.cell{display:flex;align-items:center;gap:5px}
+.statusleft{min-width:0}
+.signals{min-width:0}
+.cell{white-space:nowrap}
+.bars{display:flex;align-items:end;gap:2px;height:17px;padding-bottom:2px}
+.bars i{display:block;width:3px;border-radius:1px;background:#3f4349}
+.bars i.on{background:#ff9a29}
+.demo{font:800 8px/1 monospace;letter-spacing:.04em;color:#1a1210;background:#ff9a29;border-radius:3px;padding:3px 4px}
+.battery{position:relative;width:19px;height:10px;border:1.5px solid #bbb;border-radius:2px;margin-left:2px}
+.battery:after{content:"";position:absolute;width:3px;height:5px;background:#bbb;right:-5px;top:1px}
+.battery:before{content:"";position:absolute;width:70%;height:6px;background:#ff9a29;left:1px;top:1px}
+.battery.charging{border-color:#9cefbb}
+.brand{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #32353b;padding:1px 0 9px}
+.brandtext{display:flex;align-items:baseline;gap:8px}
+.brand strong{font-size:23px;font-weight:900;letter-spacing:-.06em;line-height:1}
+.brand small{font-size:10px;color:var(--amber);font-weight:800;letter-spacing:.15em}
+.connection{font:700 9px ui-monospace,monospace;color:#d79b70;border:1px solid #664b3c;padding:5px 6px;border-radius:6px}
+.connection[data-active=true]{color:#a8e6af;border-color:#477356}
+.dolphinwrap{padding:8px 8px 9px;border:1px solid #414043;border-radius:15px;background:#1b1c20}
+.regionlabel,.regiontitle{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.regionlabel{font:750 9px/1.25 ui-monospace,monospace;letter-spacing:.13em;color:#b8b9c1;margin:0 1px 7px}
+.regionlabel .accent{color:#ff9e3f}
+#dolphin{display:block;width:min(100%,332px);height:auto;aspect-ratio:2/1;margin:0 auto;background:#ff9500;border-radius:5px;image-rendering:pixelated;border:3px solid #ff8a12}
+.dolphinNote{font:700 9px/1.2 ui-monospace,monospace;color:#afaeb4;text-align:center;letter-spacing:.06em;padding-top:8px}
+.regiontitle{padding:1px 1px 0}
+.regiontitle strong{font-weight:850;font-size:15px;letter-spacing:-.025em}
+.regiontitle small{font:700 10px monospace;color:#ff9950}
+.lcd{padding:7px;border:1px solid #a95915;background:#f58312;border-radius:12px;box-shadow:inset 0 0 0 2px #3a2315}
+#panel{display:block;width:100%;aspect-ratio:256/144;background:#ff8200;image-rendering:pixelated;touch-action:none;border-radius:4px;cursor:pointer}
+#panel:focus-visible{outline:3px solid #fff;outline-offset:-3px}
+.detail{display:flex;justify-content:space-between;gap:6px;align-items:center;min-height:18px}
+#runtimeStatus{font:700 9px monospace;color:#9e9e9e}
+#message{font:600 10px monospace;color:#e2b181;text-align:right;max-width:54%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#message.error{color:#ff8886}
+.navrow{display:grid;grid-template-columns:1fr 1fr 1.25fr .75fr;gap:7px}
+button{min-width:0;min-height:49px;touch-action:manipulation;cursor:pointer;font:800 11px ui-sans-serif,system-ui,sans-serif;letter-spacing:.03em}
+button:focus-visible{outline:3px solid #e9e9e9;outline-offset:2px}
+.navrow button{border:1px solid #4a4e58;border-radius:10px;background:#21242b;color:#eee}
+.navrow button.active{background:#ff8200;color:#21170d;border-color:#ffac53}
+.navrow button.ptt{border-color:#9b653e;color:#ffd3ab}
+.navrow button:active,.softrow button:active{transform:translateY(1px);filter:brightness(1.2)}
+.softlabel{display:flex;justify-content:space-between;align-items:center;color:#a3a6ad;font:750 10px/1 ui-monospace,monospace;letter-spacing:.08em}
+.softlabel span:last-child{color:#807d7d;font-size:9px}
+.softrow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.softrow button{min-height:45px;background:#181a20;color:#ffa85a;border:1px solid #925015;border-radius:8px;font:800 10px/1.1 ui-monospace,Consolas,monospace}
+footer{margin-top:auto;border-top:1px solid #303036;padding-top:8px;display:flex;justify-content:space-between;gap:9px;align-items:center;font:700 9px ui-monospace,monospace;color:#878b95}
+footer b{color:#ffad69}
+#openMenu{min-height:24px;border:0;background:none;color:#fa9f4c;font:700 9px ui-monospace,monospace;text-decoration:underline}
+@media(min-width:720px){main{margin-top:16px;border:1px solid #343339;border-radius:24px;min-height:844px}}
+@media(max-height:740px){main{gap:6px}.brand strong{font-size:21px}.dolphinwrap{padding:6px}.dolphinNote{padding-top:5px}button{min-height:41px}.softrow button{min-height:36px}footer{padding-top:5px}}
+</style>
+</head>
+<body>
+<main>
+  <section class="statusbar" aria-label="Phone status">
+    <div class="statusleft">
+      <span id="demoTag" class="demo" hidden>DEMO</span>
+      <span class="signals"><span id="wifiText">Wi-Fi --</span><span class="bars" id="wifiBars" aria-label="Wi-Fi signal strength"></span></span>
+      <span class="cell"><span id="cellText">No service</span><span class="bars" id="cellBars" aria-label="Cellular signal strength"></span></span>
+    </div>
+    <div class="statusright"><span id="batteryText">--%</span><span id="batteryIcon" class="battery" aria-hidden="true"></span></div>
+  </section>
+  <header class="brand">
+    <div class="brandtext"><strong>Flipper</strong><small>PHONE / NATIVE</small></div>
+    <span id="connection" class="connection" data-active="false">CONNECTING</span>
+  </header>
+  <section class="dolphinwrap" aria-label="Original Flipper Dolphin animation">
+    <div class="regionlabel"><span>🐬 ORIGINAL DOLPHIN</span><span class="accent">STOCK FRAMES</span></div>
+    <canvas id="dolphin" width="128" height="64" role="img" aria-label="Original Flipper Zero Dolphin animation, cycling"></canvas>
+    <div id="dolphinCaption" class="dolphinNote">Loading original firmware animation frames…</div>
+  </section>
+  <div class="regiontitle"><strong><span id="modeLabel">Desktop</span> <span style="color:#ff8200">/ Flipper One</span></strong><button id="openMenu" type="button">OPEN MENU</button></div>
+  <section class="lcd" aria-label="Live original Flipper One Rust/Slint display">
+    <canvas id="panel" width="256" height="144" tabindex="0" role="img" aria-label="Original Flipper One framebuffer. Tap menu rows directly, swipe to navigate."></canvas>
+  </section>
+  <div class="detail"><div id="runtimeStatus">GENUINE FLIPCTL / CONNECTING</div><div id="message" role="status">Linux-native UI stream</div></div>
+  <nav class="navrow" aria-label="Flipper One navigation controls">
+    <button id="btnBack" type="button">← BACK</button>
+    <button id="btnApps" type="button">APPS</button>
+    <button id="btnSelect" class="active" type="button">OK / SELECT</button>
+    <button id="btnPtt" class="ptt" type="button">PTT</button>
+  </nav>
+  <div class="softlabel"><span>FLIPPER ONE / ORIGINAL SOFT KEYS</span><span>TOUCH</span></div>
+  <nav class="softrow" aria-label="Original Flipper One five soft keys">
+    <button type="button" data-key="esc">ESC</button>
+    <button type="button" data-key="view">VIEW</button>
+    <button type="button" data-key="power">POWER</button>
+    <button type="button" data-key="edit">EDIT</button>
+    <button type="button" data-key="run">RUN</button>
+  </nav>
+  <footer><span><b>REAL RUST/SLINT UI</b> · native Linux process</span><span>ARM64 PHONE BUILD PENDING</span></footer>
+</main>
+<script src="remote.js"></script>
+<script>/* NATIVE_TOUCH_ADAPTER */</script>
+<script>/* ORIGINAL_DOLPHIN_CATALOG */</script>
+<script>/* NATIVE_PHONE_SHELL_JS */</script>
+</body>
+</html>
