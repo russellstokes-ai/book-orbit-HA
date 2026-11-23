@@ -22,11 +22,11 @@ try{
  await page.waitForFunction(()=>document.querySelector("#status")?.textContent.includes("Tap a list"),{timeout:10000});
  await page.waitForFunction(x=>document.querySelector("#panel")?.toDataURL() !== x,original,{timeout:10000});
  const menu=await page.locator("#panel").evaluate(x=>x.toDataURL());
- // Tap real original menu's fourth row ("Network"), with scaled image coordinates.
+ // Tap real original menu's third rendered row ("Network"), with scaled image coordinates.
  const rect=await page.locator("#panel").boundingBox();
- const y=rect.height*(25+3*21+9)/144;
+ const y=rect.height*(25+2*21+9)/144;
  await page.locator("#panel").tap({position:{x:rect.width*.3,y}});
- await page.waitForFunction(()=>document.querySelector("#status")?.textContent.includes("Selected row 4"),{timeout:12000});
+ await page.waitForFunction(()=>document.querySelector("#status")?.textContent.includes("Selected row 3"),{timeout:12000});
  await page.waitForFunction(x=>document.querySelector("#panel")?.toDataURL() !== x,menu,{timeout:12000});
  await sleep(350);
  await page.screenshot({path:output,fullPage:true});
