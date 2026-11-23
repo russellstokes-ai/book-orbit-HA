@@ -18,6 +18,8 @@ import importlib.util
 import json
 from pathlib import Path
 import tempfile
+from io import BytesIO
+from PIL import Image
 import threading
 from urllib.parse import urlsplit
 
@@ -56,7 +58,20 @@ class FlipperBridge:
             try:
                 output = Path(tmp) / "real-lcd.png"
                 mon.screenshot(str(output))
-                result = output.read_bytes()
+                # FlipperEmu's QEMU screenshot is 544x312: a 512x256
+                # 4x-native LCD plus a bezel and battery/status strip.
+                # Crop ONLY the genuine display pixels; never stretch it.
+                with Image.open(output) as screenshot:
+                    if screenshot.size == (544, 312):
+                        display = screenshot.crop((16, 16, 528, 272))
+                    elif screenshot.size in ((512, 256), (128, 64)):
+                        display = screenshot.copy()
+                    else:
+                        raise RuntimeError("Unknown QEMU framebuffer size: " +
+                                           str(screenshot.size))
+                    buffer = BytesIO()
+                    display.save(buffer, format="PNG")
+                    result = buffer.getvalue()
                 if not result.startswith(b"\x89PNG\r\n\x1a\n") or len(result) < 100:
                     raise RuntimeError("FlipperEmu returned invalid display data")
                 return result

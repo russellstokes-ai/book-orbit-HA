@@ -36,7 +36,8 @@ def frame(name):
     assert headers.get_content_type() == "image/png", headers
     assert data.startswith(b"\x89PNG\r\n\x1a\n"), name
     width, height = struct.unpack(">II", data[16:24])
-    assert 64 <= width <= 1920 and 32 <= height <= 1080, (width, height)
+    assert (width, height) in ((512, 256), (128, 64)), (width, height)
+    assert width == height * 2, "Authentic LCD must be undistorted 2:1"
     assert len(data) > 200, (name, len(data))
     (OUT / name).write_bytes(data)
     print("Genuine Flipper framebuffer:", name, width, height, len(data), "bytes")
