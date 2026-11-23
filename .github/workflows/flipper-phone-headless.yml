@@ -1,0 +1,74 @@
+name: Flipper Phone interactive headless smoke (isolated)
+
+on:
+  push:
+    branches:
+      - experiment/flipper-phone-feasibility-20261123
+    paths:
+      - .github/workflows/flipper-phone-headless.yml
+
+permissions:
+  contents: read
+
+jobs:
+  arm64-headless-touch:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 25
+    steps:
+      - name: Checkout genuine Flipper UI source
+        uses: actions/checkout@v4
+        with:
+          repository: flipperdevices/flipctl-slint
+          ref: dev
+          path: flipctl
+          persist-credentials: false
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.92.0'
+      - name: Compile interactive ARM64 daemon
+        working-directory: flipctl
+        run: cargo build --locked -p flipctl --features device,slint,remote
+      - name: Start on generic Linux without a Flipper screen
+        working-directory: flipctl
+        shell: bash
+        run: |
+          set -euxo pipefail
+          ./target/debug/flipctl --headless --remote 127.0.0.1:8899 --assets crates/flipper-ui/assets/remote > "$RUNNER_TEMP/flipper-daemon.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/flipper-daemon.pid"
+          ready=0
+          for i in $(seq 1 60); do
+            if curl --silent --fail --max-time 1 http://127.0.0.1:8899/ -o "$RUNNER_TEMP/flipper-page.html"; then ready=1; break; fi
+            if ! kill -0 "$(cat "$RUNNER_TEMP/flipper-daemon.pid")" 2>/dev/null; then
+              echo "daemon exited early"; cat "$RUNNER_TEMP/flipper-daemon.log"; exit 1
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then echo "daemon not ready"; cat "$RUNNER_TEMP/flipper-daemon.log"; exit 1; fi
+          grep -q 'Flipper One' "$RUNNER_TEMP/flipper-page.html"
+          curl --silent --fail --max-time 4 http://127.0.0.1:8899/remote.js -o "$RUNNER_TEMP/remote.js"
+          grep -q 'pointerdown' "$RUNNER_TEMP/remote.js"
+      - name: Send real browser-style touch events through the existing API
+        shell: bash
+        run: |
+          set -euxo pipefail
+          for key in down ok back; do
+            curl --silent --show-error --fail --max-time 5 \
+              -X POST http://127.0.0.1:8899/input \
+              -H 'Content-Type: application/json' \
+              --data "{\"key\":\"$key\",\"down\":true}"
+            curl --silent --show-error --fail --max-time 5 \
+              -X POST http://127.0.0.1:8899/input \
+              -H 'Content-Type: application/json' \
+              --data "{\"key\":\"$key\",\"down\":false}"
+          done
+          kill -0 "$(cat "$RUNNER_TEMP/flipper-daemon.pid")"
+          echo 'PASS: ARM64 service without a Flipper display, browser assets served, and touch-input API accepts actions'
+      - name: Preserve diagnostic log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flipctl-headless-log
+          path: ${{ runner.temp }}/flipper-daemon.log
+          retention-days: 3
+          if-no-files-found: ignore
