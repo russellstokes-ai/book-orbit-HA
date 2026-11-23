@@ -4,6 +4,7 @@ on:
     branches: [experiment/flipper-phone-feasibility-20261123]
     paths:
       - .github/workflows/flipper-phone-touch.yml
+      - flipper-phone-poc/**
 permissions:
   contents: read
 
