@@ -102,7 +102,7 @@
         const row=api.menuRowAt(e.clientY,canvas.getBoundingClientRect(),s);
         if(row>=0){
           const result=await adapter.tapVisibleRow(row);
-          report(result.navigated?"Opened original menu item":"Original menu selection activated");
+          report(result.navigated?"Native menu opened":"Original selection activated");
         }
       }else if(s.screen==="idle"){
         await adapter.openMenu();
