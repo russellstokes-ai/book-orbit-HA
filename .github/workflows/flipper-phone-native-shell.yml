@@ -1,0 +1,114 @@
+name: Flipper Phone native Dolphin shell - real screenshots
+on:
+  push:
+    branches: [experiment/flipper-phone-native-shell-20261123]
+    paths:
+      - .github/workflows/flipper-phone-native-shell.yml
+      - flipper-phone-poc/native-shell*
+      - flipper-phone-poc/build-native-shell.py
+      - flipper-phone-poc/browser-native-shell-smoke.mjs
+      - flipper-phone-poc/patch-navigation-state.py
+      - flipper-phone-poc/touch-state.js
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  native-flipper-phone:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout independent Flipper Phone prototype
+        uses: actions/checkout@v4
+      - name: Checkout pinned original Flipper One native Rust/Slint
+        uses: actions/checkout@v4
+        with:
+          repository: flipperdevices/flipctl-slint
+          ref: 258e19a1ead6e32f27c89f272d6ec92be986ad61
+          path: flipctl
+          persist-credentials: false
+      - name: Checkout only unmodified original Dolphin animation directories
+        uses: actions/checkout@v4
+        with:
+          repository: flipperdevices/flipperzero-firmware
+          ref: e459e2d939db7f292d7dcfe6935b8fb2641409e3
+          path: flipperzero
+          persist-credentials: false
+          sparse-checkout: |
+            assets/dolphin/external/L1_Waves_128x50
+            assets/dolphin/external/L1_Laptop_128x51
+            assets/dolphin/external/L1_Sleep_128x64
+            assets/dolphin/external/L1_Furippa1_128x64
+            assets/dolphin/external/L1_Showtime_128x64
+          sparse-checkout-cone-mode: false
+      - name: Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.92.0'
+      - name: Native touch state and original stock Dolphin bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 flipper-phone-poc/patch-navigation-state.py
+          python3 flipper-phone-poc/build-native-shell.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          m=json.loads(Path("flipper-phone-poc/native-shell-manifest.json").read_text())
+          assert len(m["animation_names"])==5
+          s=Path("flipctl/crates/flipper-ui/src/remote/page.html").read_text()
+          assert "window.ORIGINAL_DOLPHIN_ASSETS" in s and "ORIGINAL •" in s
+          assert "ptt" in s and "edit" in s and "VIEW" in s
+          assert "data:image/png;base64," in s
+          print("Original source asset integration verified")
+          PY
+      - name: Compile genuine native Flipper One Linux UI
+        working-directory: flipctl
+        run: cargo build --locked -p flipctl --features device,slint,remote
+      - name: Start original Flipper One Rust/Slint headless display
+        shell: bash
+        working-directory: flipctl
+        run: |
+          set -euxo pipefail
+          ./target/debug/flipctl --headless --remote 127.0.0.1:8899 \
+            --assets crates/flipper-ui/assets/remote > "$RUNNER_TEMP/flipper-native-phone.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/flipper-native-phone.pid"
+          for n in $(seq 1 70); do
+            if curl --fail --silent http://127.0.0.1:8899/state -o /tmp/native-state.json &&
+               curl --fail --silent http://127.0.0.1:8899/phone-status -o /tmp/native-phone-status.json; then
+              python3 -m json.tool /tmp/native-phone-status.json >/dev/null
+              curl --silent --fail http://127.0.0.1:8899/ | grep -q "ORIGINAL DOLPHIN"
+              echo "Original native FlipCTL process + actual stock Dolphin UI up"
+              exit 0
+            fi
+            kill -0 "$(cat "$RUNNER_TEMP/flipper-native-phone.pid")"
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/flipper-native-phone.log"
+          exit 1
+      - name: Install real-browser screenshot tools
+        run: |
+          which google-chrome
+          npm install --prefix flipper-phone-poc --no-save --no-audit --no-fund playwright-core@1.58.2
+          node --test flipper-phone-poc/touch-state.test.cjs
+      - name: Test direct navigation + capture actual UI screenshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p flipper-phone-poc/native-proof
+          node flipper-phone-poc/browser-native-shell-smoke.mjs
+          cp "$RUNNER_TEMP/flipper-native-phone.log" flipper-phone-poc/native-proof/real-flipctl.log
+          cp flipper-phone-poc/native-shell-manifest.json flipper-phone-poc/native-proof/source-manifest.json
+          test -s flipper-phone-poc/native-proof/flipper-phone-native-network.png
+          test -s flipper-phone-poc/native-proof/flipper-phone-native-desktop-demo-signals.png
+          echo "PASS: actual screenshot captures from native Rust/Slint Flipper + unaltered stock Dolphin"
+      - name: Save screenshots and test evidence, including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: genuine-flipper-phone-native-ui-screenshots
+          path: |
+            flipper-phone-poc/native-proof
+            flipper-phone-poc/native-shell-manifest.json
+          retention-days: 7
+          if-no-files-found: ignore
