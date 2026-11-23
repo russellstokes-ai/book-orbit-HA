@@ -192,37 +192,46 @@
   }
   async function loadStatus(){
     if(demo){
-      q("#demoTag").hidden=false;
-      q("#wifiText").textContent="Wi-Fi";drawBars(q("#wifiBars"),76);
-      q("#cellText").textContent="5G";drawBars(q("#cellBars"),68);
-      q("#batteryText").textContent="82%";
+      // Preview-only fixture, never used for actual hardware assertions.
+      q("#wifiText").textContent="Wi-Fi preview";
+      q("#wifiStatus").style.opacity="1";
+      drawBars(q("#wifiBars"),76);
+      q("#cellText").textContent="5G";
+      q("#cellText").hidden=false;
+      drawBars(q("#cellBars"),68);
+      q("#batteryText").textContent="Battery preview 82%";
+      q("#batteryIcon").style.setProperty("--battery-pct","72%");
       return;
     }
     try{
       const r=await fetch("phone-status",{cache:"no-store"});
       if(!r.ok)throw new Error("No native status");
       const d=await r.json();
-      q("#demoTag").hidden=true;
       if(d.wifi_connected){
-        q("#wifiText").textContent="Wi-Fi";
+        q("#wifiText").textContent="Wi-Fi connected";
+        q("#wifiStatus").style.opacity="1";
         drawBars(q("#wifiBars"),d.wifi_quality);
       }else{
-        q("#wifiText").textContent="Wi-Fi off";
+        q("#wifiText").textContent="Wi-Fi offline";
+        q("#wifiStatus").style.opacity=".35";
         drawBars(q("#wifiBars"),null);
       }
       if(d.modem_available&&d.access_tech!=="--"){
         q("#cellText").textContent=d.access_tech;
+        q("#cellText").hidden=false;
         drawBars(q("#cellBars"),d.modem_quality);
       }else{
-        q("#cellText").textContent="No service";
+        q("#cellText").textContent="";
+        q("#cellText").hidden=true;
         drawBars(q("#cellBars"),null);
       }
-      q("#batteryText").textContent=d.battery>=0?d.battery+"%":"--%";
+      q("#batteryText").textContent=d.battery>=0?"Battery "+d.battery+"%":"Battery unavailable";
+      q("#batteryIcon").style.setProperty("--battery-pct",d.battery>=0?Math.round(Math.max(0,Math.min(100,d.battery))*.7)+"%":"0%");
       q("#batteryIcon").classList.toggle("charging",!!d.charging);
     }catch(e){
-      q("#wifiText").textContent="Wi-Fi --"; drawBars(q("#wifiBars"),null);
-      q("#cellText").textContent="No service";drawBars(q("#cellBars"),null);
-      q("#batteryText").textContent="--%";
+      q("#wifiText").textContent="Wi-Fi unavailable"; q("#wifiStatus").style.opacity=".35"; drawBars(q("#wifiBars"),null);
+      q("#cellText").textContent="";q("#cellText").hidden=true;drawBars(q("#cellBars"),null);
+      q("#batteryText").textContent="Battery unavailable";q("#batteryIcon").style.setProperty("--battery-pct","0%");
     }
   }
   loadStatus();
@@ -233,7 +242,7 @@
     stream.draw(grey,x,y,w,h);
     canvas.dataset.frames=String((Number(canvas.dataset.frames)||0)+1);
   },(text,ok)=>{
-    conn.textContent=ok?"CONNECTED":text.toUpperCase();
+    conn.ariaLabel=ok?"Flipper One interface connected":"Flipper One interface "+text;
     conn.dataset.active=ok?"true":"false";
   });
 })();
