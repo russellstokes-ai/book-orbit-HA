@@ -76,7 +76,7 @@ jobs:
           p = Path('../flipper-phone-poc/zero-arm64-proof')
           for name in ('idle.png', 'after-ok.png'):
               b=(p/name).read_bytes()
-              assert b.startswith(b'\\x89PNG\\r\\n\\x1a\\n'), name
+              assert b.startswith(b'\x89PNG\r\n\x1a\n'), name
               assert len(b)>200, name
           status=json.loads((p/'status.json').read_text())
           assert isinstance(status,dict) and status, status
