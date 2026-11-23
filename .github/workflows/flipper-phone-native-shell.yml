@@ -58,7 +58,7 @@ jobs:
           assert len(m["animation_names"])==5
           s=Path("flipctl/crates/flipper-ui/src/remote/page.html").read_text()
           assert "window.ORIGINAL_DOLPHIN_ASSETS" in s and "Official stock Flipper Zero Dolphin animation" in s
-          assert "ptt" in s and "data-key=\\"edit\\"" in s and "data-key=\\"view\\"" in s
+          assert "ptt" in s and 'data-key="edit"' in s and 'data-key="view"' in s
           assert "data:image/png;base64," in s
           print("Original source asset integration verified")
           PY
