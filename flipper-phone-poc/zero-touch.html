@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#101319">
+<title>Flipper Phone — Original Zero Firmware</title>
+<style>
+:root {color-scheme:dark;--amber:#ff8200;--amber-soft:#ffbd73;--panel:#151b23;--mute:#9ca4ae}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:#0b0f15;color:#f0f2f3}
+body{font:500 15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+main{width:min(100%,470px);min-height:100dvh;margin:auto;padding:27px 19px 24px;display:flex;flex-direction:column;gap:18px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{display:flex;flex-direction:column;gap:3px}
+.eyebrow{font-size:10px;letter-spacing:0.18em;color:var(--amber);font-weight:800}
+h1{font-size:23px;line-height:1.1;font-weight:800;letter-spacing:-.035em;margin:0}
+.pill{border:1px solid #394855;border-radius:20px;padding:8px 11px;color:#cdd4de;font:700 11px monospace}
+.pill[data-state="online"]{border-color:#547660;color:#9fe2b5}
+.pill[data-state="offline"]{border-color:#7f4b3f;color:#ffb6a5}
+.zone{margin-top:24px}
+.caption{display:flex;justify-content:space-between;color:var(--mute);letter-spacing:.1em;text-transform:uppercase;font-size:10px;font-weight:800;margin:0 0 8px}
+.screen-frame{padding:11px;border-radius:20px;background:linear-gradient(140deg,#ff9f32,#ff7600 55%,#a74404);box-shadow:0 0 0 2px #4d2c0b,0 17px 45px #0007}
+.screen-inner{overflow:hidden;border:6px solid #19110c;border-radius:8px;background:#f9a646;touch-action:none}
+#lcd{display:block;width:100%;aspect-ratio:2/1;height:auto;object-fit:fill;image-rendering:pixelated;user-select:none;-webkit-user-drag:none;touch-action:none;cursor:pointer}
+#lcd:focus-visible{outline:4px solid #fff;outline-offset:-6px}
+#activity{min-height:43px;background:var(--panel);border:1px solid #30363f;border-radius:11px;margin-top:15px;padding:11px 13px;color:#c9d2db;font:12px/1.5 monospace}
+#activity[data-error="true"]{border-color:#9d634f;color:#ffc4aa}
+.quick{display:flex;gap:12px}
+button{font:800 15px system-ui;min-height:54px;border-radius:13px;cursor:pointer;touch-action:manipulation;flex:1}
+button:focus-visible{outline:2px solid var(--amber);outline-offset:3px}
+#back{background:#171f27;border:1px solid #3a4959;color:#f7f7f7}
+#select{background:var(--amber);border:1px solid #ffaf45;color:#20140b}
+button:active{transform:translateY(1px)}
+.guide{border-top:1px solid #333943;padding-top:17px}
+.guide h2{font-size:13px;text-transform:uppercase;letter-spacing:.13em;margin:0 0 11px;color:var(--amber-soft)}
+.tips{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tip{border:1px solid #2c3642;background:#111922;border-radius:11px;padding:10px 11px}
+.tip strong{display:block;color:#edf1f5;font-size:13px}
+.tip span{display:block;color:var(--mute);font-size:12px;margin-top:3px}
+footer{font-size:11px;color:#8592a1;margin-top:auto;line-height:1.6}
+footer b{color:#d8a16d}
+@media(min-width:750px){main{margin-top:3vh;min-height:92dvh;border:1px solid #27303b;border-radius:24px;background:#10151d}}
+@media(prefers-reduced-motion:reduce){button:active{transform:none}}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div class="brand"><span class="eyebrow">ORIGINAL FIRMWARE / EXPERIMENTAL</span><h1>Flipper Phone</h1></div>
+  <span id="connection" class="pill" data-state="offline" role="status">CONNECTING</span>
+</header>
+<section class="zone" aria-label="Authentic Flipper Zero display">
+  <div class="caption"><span>Flipper Zero / live LCD</span><span>128 × 64</span></div>
+  <div class="screen-frame"><div class="screen-inner">
+    <img id="lcd" src="" width="128" height="64" alt="Live, unmodified Flipper Zero LCD. Tap to select, swipe to move." tabindex="0" role="button">
+  </div></div>
+  <div id="activity" role="status">Connecting to genuine Flipper Zero firmware…</div>
+</section>
+<nav class="quick" aria-label="Flipper actions">
+  <button id="back" type="button">← Back</button>
+  <button id="select" type="button">Select ↵</button>
+</nav>
+<section class="guide">
+  <h2>Touch navigation</h2>
+  <div class="tips">
+    <div class="tip"><strong>Tap screen</strong><span>Confirm / OK</span></div>
+    <div class="tip"><strong>Swipe vertically</strong><span>Move through menus</span></div>
+    <div class="tip"><strong>Swipe sideways</strong><span>Left / Right</span></div>
+    <div class="tip"><strong>Swipe from left edge</strong><span>Go back</span></div>
+    <div class="tip"><strong>Long press</strong><span>Hold OK</span></div>
+    <div class="tip"><strong>Back button</strong><span>Exit current screen</span></div>
+  </div>
+</section>
+<footer><b>REAL FLIPPER ZERO UI.</b> No rewritten Dolphin artwork, fake menus, or virtual D-pad. The phone gestures are mapped to the emulator's existing hardware-button events. Real RF peripherals and Android deployment are not yet implemented.</footer>
+</main>
+<script src="/zero-touch.js"></script>
+</body>
+</html>
