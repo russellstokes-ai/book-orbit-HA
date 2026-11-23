@@ -1,0 +1,133 @@
+name: Flipper Phone - genuine Zero touchscreen bridge
+on:
+  push:
+    branches: [experiment/flipper-phone-zero-arm64-20261123]
+    paths:
+      - .github/workflows/flipper-phone-zero-touch.yml
+      - flipper-phone-poc/zero-touch*
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  browser-and-gesture:
+    name: Portrait touch gestures in a real browser (mock monitor)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends python3-pil
+          node --version
+          which google-chrome
+          npm install --prefix flipper-phone-poc --no-save --no-audit --no-fund playwright-core@1.58.2
+      - name: Gesture classification unit tests
+        run: node --test flipper-phone-poc/zero-touch.test.cjs
+      - name: Drive the actual phone HTML with Playwright
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p flipper-phone-poc/zero-touch-proof
+          python3 flipper-phone-poc/zero-touch-server.py \
+            --monitor /tmp/zero-touch-test.sock \
+            --fe-monitor flipper-phone-poc/zero-touch-test-monitor.py \
+            --port 8878 \
+            --event-log flipper-phone-poc/zero-touch-proof/browser-events.jsonl \
+            > flipper-phone-poc/zero-touch-proof/mock-server.log 2>&1 &
+          PID=$!
+          trap 'kill "$PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 35); do
+            if curl --silent --fail http://127.0.0.1:8878/health; then break; fi
+            sleep 0.3
+          done
+          curl --fail http://127.0.0.1:8878/health
+          node flipper-phone-poc/zero-touch-browser-smoke.mjs
+      - name: Save browser test diagnostics (mock only)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flipper-phone-browser-gesture-mock
+          path: flipper-phone-poc/zero-touch-proof
+          retention-days: 7
+          if-no-files-found: ignore
+
+  real-firmware-arm64:
+    name: Real Flipper Zero firmware + touch API on ARM64
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout pinned FlipperEmu
+        uses: actions/checkout@v4
+        with:
+          repository: KaraZajac/FlipperEmu
+          ref: e194a55f18fc5d18406c6a7197af7d0e9387caf3
+          path: flipperemu
+          persist-credentials: false
+      - name: Install native ARM64 emulator dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential ninja-build pkg-config libglib2.0-dev libpixman-1-dev \
+            libgtk-3-dev libfdt-dev python3-venv python3-pip python3-pil \
+            xz-utils curl patch file mtools dosfstools
+      - name: Build genuine FlipperEmu on ARM64
+        working-directory: flipperemu
+        shell: bash
+        run: |
+          set -euxo pipefail
+          test "$(uname -m)" = "aarch64"
+          scripts/setup_qemu.sh
+          test -x build/qemu/qemu-system-arm
+          build/qemu/qemu-system-arm --version
+      - name: Download and verify official Zero firmware
+        working-directory: flipperemu
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 scripts/fetch_firmware.py --version 1.5.1 --types update_tgz
+          FW="$(find firmware/official-1.5.1 -maxdepth 1 -name '*.tgz' -print -quit)"
+          test -s "$FW"
+          echo "FLIPPER_FW=$FW" >> "$GITHUB_ENV"
+      - name: Boot original Zero firmware and test touchscreen API end-to-end
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p flipper-phone-poc/zero-touch-proof
+          cd flipperemu
+          ./flipperemu -d touchproof run -f "$FLIPPER_FW" --headless --detach
+          ./flipperemu -d touchproof wait --timeout 90
+          cd ..
+          python3 flipper-phone-poc/zero-touch-server.py \
+            --monitor flipperemu/devices/touchproof/monitor.sock \
+            --fe-monitor flipperemu/scripts/fe_monitor.py \
+            --port 8877 \
+            --event-log flipper-phone-poc/zero-touch-proof/events.jsonl \
+            > flipper-phone-poc/zero-touch-proof/real-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true; (cd flipperemu && ./flipperemu -d touchproof stop) || true' EXIT
+          for i in $(seq 1 50); do
+            if curl --fail --silent http://127.0.0.1:8877/health \
+              > /dev/null; then break; fi
+            sleep 0.3
+          done
+          curl --fail --silent http://127.0.0.1:8877/health
+          python3 flipper-phone-poc/zero-touch-api-smoke.py
+          echo "PASS: original Flipper Zero firmware connected to local phone touch API"
+      - name: Preserve real firmware log
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p flipper-phone-poc/zero-touch-proof
+          cd flipperemu
+          ./flipperemu -d touchproof log | tail -80 > ../flipper-phone-poc/zero-touch-proof/firmware-log.txt || true
+      - name: Archive genuine firmware screen proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flipper-phone-zero-touch-real-arm64-proof
+          path: flipper-phone-poc/zero-touch-proof
+          retention-days: 7
+          if-no-files-found: ignore
