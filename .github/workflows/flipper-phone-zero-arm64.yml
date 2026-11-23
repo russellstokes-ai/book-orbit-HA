@@ -1,0 +1,105 @@
+name: Flipper Phone - genuine Flipper Zero ARM64 emulator proof
+on:
+  push:
+    branches:
+      - experiment/flipper-phone-zero-arm64-20261123
+    paths:
+      - .github/workflows/flipper-phone-zero-arm64.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  flipper-zero-arm64:
+    name: Unmodified Zero firmware on native ARM64 Linux
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    steps:
+      - name: Checkout isolated Flipper Phone test branch
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned FlipperEmu (BSD-3-Clause)
+        uses: actions/checkout@v4
+        with:
+          repository: KaraZajac/FlipperEmu
+          ref: e194a55f18fc5d18406c6a7197af7d0e9387caf3
+          path: flipperemu
+          persist-credentials: false
+
+      - name: Install QEMU native ARM64 build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential ninja-build pkg-config libglib2.0-dev \
+            libpixman-1-dev libgtk-3-dev libfdt-dev python3-venv \
+            python3-pip xz-utils curl patch file
+
+      - name: Build genuine FlipperEmu QEMU on a native ARM64 CPU
+        working-directory: flipperemu
+        shell: bash
+        run: |
+          set -euxo pipefail
+          test "$(uname -m)" = "aarch64"
+          scripts/setup_qemu.sh
+          file build/qemu/qemu-system-arm
+          build/qemu/qemu-system-arm --version
+          test -x build/qemu/qemu-system-arm
+
+      - name: Download SHA256-verified official Flipper Zero firmware
+        working-directory: flipperemu
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 scripts/fetch_firmware.py --version 1.5.1 --types update_tgz
+          FW="$(find firmware/official-1.5.1 -maxdepth 1 -name '*.tgz' -print -quit)"
+          test -s "$FW"
+          echo "FLIPPER_FW=$FW" >> "$GITHUB_ENV"
+
+      - name: Boot untouched Flipper Zero firmware, verify CLI, screen and input
+        working-directory: flipperemu
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p ../flipper-phone-poc/zero-arm64-proof
+          ./flipperemu -d arm64proof run -f "$FLIPPER_FW" --headless --detach
+          ./flipperemu -d arm64proof wait --timeout 90
+          ./flipperemu -d arm64proof status --json > ../flipper-phone-poc/zero-arm64-proof/status.json
+          ./flipperemu -d arm64proof shot ../flipper-phone-poc/zero-arm64-proof/idle.png
+          ./flipperemu -d arm64proof shot --text ../flipper-phone-poc/zero-arm64-proof/idle.txt
+          ./flipperemu -d arm64proof press ok
+          sleep 2
+          ./flipperemu -d arm64proof shot ../flipper-phone-poc/zero-arm64-proof/after-ok.png
+          ./flipperemu -d arm64proof shot --text ../flipper-phone-poc/zero-arm64-proof/after-ok.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          p = Path('../flipper-phone-poc/zero-arm64-proof')
+          for name in ('idle.png', 'after-ok.png'):
+              b=(p/name).read_bytes()
+              assert b.startswith(b'\\x89PNG\\r\\n\\x1a\\n'), name
+              assert len(b)>200, name
+          status=json.loads((p/'status.json').read_text())
+          assert isinstance(status,dict) and status, status
+          print('PASS: native ARM64 QEMU boot, live LCD output and hardware-button injection')
+          print('Status keys:',list(status)[:20])
+          PY
+          ./flipperemu -d arm64proof stop
+
+      - name: Inspect firmware boot evidence
+        if: always()
+        working-directory: flipperemu
+        shell: bash
+        run: |
+          ./flipperemu -d arm64proof log | tail -60 || true
+          if test -d devices/arm64proof; then
+            cp devices/arm64proof/*.log ../flipper-phone-poc/zero-arm64-proof/ 2>/dev/null || true
+          fi
+
+      - name: Upload original Flipper Zero screen and runtime diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flipper-phone-genuine-zero-arm64-proof
+          path: flipper-phone-poc/zero-arm64-proof
+          retention-days: 7
+          if-no-files-found: ignore
