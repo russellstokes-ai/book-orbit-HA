@@ -42,6 +42,31 @@ try{
  assert.equal(await page.locator("#flipperLogo").count(),1);
  assert.equal(await page.locator(".navrow button svg").count(),4,"Icon-only primary controls");
  assert.equal(await page.locator(".softrow button svg").count(),5,"Icon-only original Flipper One soft keys");
+ // Flipper One original bottom soft-bar occupies 5 x 48px slots with 4px
+ // spacing in its 256px UI. Touch targets must have precisely the same centres.
+ const aligned=await page.evaluate(()=>{
+   const panel=document.querySelector("#panel").getBoundingClientRect();
+   const main=document.querySelector(".softrow").getBoundingClientRect();
+   const primary=document.querySelector(".navrow").getBoundingClientRect();
+   const centers=[...document.querySelectorAll(".softrow button")].map(x=>{
+     const r=x.getBoundingClientRect();
+     return r.left+r.width/2;
+   });
+   const expected=[24,76,128,180,232].map(x=>panel.left+panel.width*x/256);
+   return {panel:{left:panel.left,width:panel.width,bottom:panel.bottom},
+     soft:{left:main.left,width:main.width,top:main.top,bottom:main.bottom},
+     secondary:{top:primary.top},centers,expected};
+ });
+ assert(Math.abs(aligned.panel.left-aligned.soft.left)<1,"Keys left edge matches screen");
+ assert(Math.abs(aligned.panel.width-aligned.soft.width)<1,"Keys width matches screen");
+ assert(aligned.soft.top>aligned.panel.bottom,"Keys are directly below the native UI");
+ assert(aligned.secondary.top>aligned.soft.bottom,"Phone controls remain below the soft keys");
+ assert(aligned.centers.every((x,i)=>Math.abs(x-aligned.expected[i])<1.2),
+   "Each touch key must align with its original Flipper One UI slot");
+ const labels=(await page.locator(".brandtext").textContent()).toLowerCase();
+ assert(labels.includes("phone") && !labels.includes("work"),"Branding is Flipper Phone only");
+ console.log("PASS: original Flipper One 5-key alignment; navigation controls below; Flipper Phone naming");
+
  assert.equal(await page.locator('[data-key="view"] svg path').getAttribute("d"),"M5 7h14M5 12h14M5 17h14");
  assert.equal(await page.locator('[data-key="edit"] svg path').getAttribute("d"),"M9 4H4v5M15 4h5v5M4 15v5h5M20 15v5h-5");
  assert.equal(await page.locator('[data-key="run"] svg path').getAttribute("d"),"m4 12 5.5 5.5L20 6");
