@@ -2,7 +2,7 @@
 
 ## Proven by real CI test
 
-Run: https://github.com/russellstokes-ai/book-orbit-HA/actions/runs/45251789976
+Latest clean, equal-size screen run: https://github.com/russellstokes-ai/book-orbit-HA/actions/runs/45272556887
 
 - Original Flipper One Rust/Slint native Linux application compiled and ran (no QEMU).
 - Real, unmodified Flipper One application menus and screen stream shown in portrait mobile browser presentation.
@@ -10,8 +10,9 @@ Run: https://github.com/russellstokes-ai/book-orbit-HA/actions/runs/45251789976
 - Stock frames preserve original source content and playback FPS/sequence. The phone renderer converts their original black/white display palette to black/amber, without drawing or inventing animations.
 - Permanent Dolphin display area persists during original Network and Settings submenu navigation.
 - Original 13 Flipper One keys exposed: directional gestures, OK, Back, Apps, PTT, Esc, View, Power, Edit and Run.
-- Native host telemetry uses the existing status backend. Host without modem displays No service; 5G, Wi-Fi strength and battery values appear only in an explicitly labelled DEMO view when no actual device exists.
-- Direct menu tapping and browser screens verified in Playwright at 390x844.
+- Native host telemetry uses the existing status backend. Live captures show disconnected/unknown signals honestly. A separate screenshot-only 5G/Wi-Fi test fixture exists without a badge by user request; it must always be labelled a preview in documentation, NEVER presented as actual mobile connectivity.
+- Direct menu tapping and browser screens verified in Playwright at 390x844. Dolphin and Flipper One display rectangles are both 356 x 200.25 CSS pixels in the tested viewport, each exactly 256x144 canvas pixels. The stock 128x64 Dolphin frames are 2x pixel-blitted with symmetric 8px amber bands, not stretched.
+- Removed top-right connection dot. Original Flipper One hardware legend shapes, traced from the official Flipper One documentation (not copied official SVG assets): X for Escape, three lines for View, power symbol, corner brackets for Edit, check for Run, overlapping windows for App Switcher, circular D-pad centre for OK, back arrow and waveform for PTT. All button behaviours remain mapped to the original Flipper One key events. Exact original icon **assets** do not exist in the project; these are faithful graphic interpretations of the official hardware legends.
 - Screenshots and source manifests are in the GitHub Actions artifact named genuine-flipper-phone-native-ui-screenshots.
 
 ## Not yet proven
