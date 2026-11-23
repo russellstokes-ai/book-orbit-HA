@@ -6,7 +6,6 @@
   const q = x => document.querySelector(x);
   const canvas = q("#panel");
   const status = q("#message");
-  const conn = q("#connection");
   const modeLabel = q("#modeLabel");
   const api = FlipperPhoneStateTouch;
   const stream = new GreyBlitter(canvas.getContext("2d"), 256, 144, [255, 130, 0]);
@@ -119,6 +118,12 @@
   const dolphin=q("#dolphin");
   const dc=dolphin.getContext("2d",{alpha:false});
   dc.imageSmoothingEnabled=false;
+  // Equal-sized screen areas: pixel-perfect 128×64 original frames scale 2x
+  // to 256×128 with 8px amber letterboxing in a 256×144 canvas.
+  const dolphinSource=document.createElement("canvas");
+  dolphinSource.width=128;dolphinSource.height=64;
+  const sc=dolphinSource.getContext("2d",{alpha:false});
+  sc.imageSmoothingEnabled=false;
   const imageCache=new Map();
   function loadImage(src){
     if(!imageCache.has(src)){
@@ -144,19 +149,21 @@
       if(!img.complete){
         await new Promise(resolve=>{img.onload=resolve;img.onerror=resolve;});
       }
-      dc.fillStyle="#ffffff";dc.fillRect(0,0,128,64);
+      sc.fillStyle="#ffffff";sc.fillRect(0,0,128,64);
       if(img.naturalWidth&&img.naturalHeight){
         // Source pixels are preserved; only the 1-bit screen palette is
         // converted from the original white/black PNG to Flipper amber/black.
-        dc.drawImage(img,0,Math.floor((64-img.naturalHeight)/2));
-        const pixels=dc.getImageData(0,0,128,64);
+        sc.drawImage(img,0,Math.floor((64-img.naturalHeight)/2));
+        const pixels=sc.getImageData(0,0,128,64);
         for(let p=0;p<pixels.data.length;p+=4){
           const v=pixels.data[p];
           pixels.data[p]=v;
           pixels.data[p+1]=Math.round(v*130/255);
           pixels.data[p+2]=0;
         }
-        dc.putImageData(pixels,0,0);
+        sc.putImageData(pixels,0,0);
+        dc.fillStyle="#ff8200";dc.fillRect(0,0,256,144);
+        dc.drawImage(dolphinSource,0,8,256,128);
         dolphin.dataset.frame=String(tick+1);
         dolphin.dataset.animation=animation.name;
       }
@@ -242,7 +249,7 @@
     stream.draw(grey,x,y,w,h);
     canvas.dataset.frames=String((Number(canvas.dataset.frames)||0)+1);
   },(text,ok)=>{
-    conn.ariaLabel=ok?"Flipper One interface connected":"Flipper One interface "+text;
-    conn.dataset.active=ok?"true":"false";
+    canvas.dataset.connected=ok?"true":"false";
+    canvas.setAttribute("aria-label",ok?"Connected native Flipper One screen":"Flipper One screen "+text);
   });
 })();

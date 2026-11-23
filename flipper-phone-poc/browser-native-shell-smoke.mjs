@@ -23,11 +23,30 @@ try{
  assert(clips.every(x=>x.fps>0&&x.frameCount>1&&x.stockFrames>1));
  console.log("Original unaltered stock Dolphin sequences:",JSON.stringify(clips));
  assert.equal(await page.locator("#demoTag").count(),0,"No demo badge in clean shell");
+ assert.equal(await page.locator("#connection").count(),0,"No top-right dot or status indicator");
+ const sizes=await page.evaluate(()=>{
+  const top=document.querySelector("#dolphin");
+  const bottom=document.querySelector("#panel");
+  const tr=top.getBoundingClientRect(),br=bottom.getBoundingClientRect();
+  return {top:[tr.width,tr.height],bottom:[br.width,br.height],
+    source:[top.width,top.height],native:[bottom.width,bottom.height]};
+ });
+ assert.deepEqual(sizes.source,[256,144]);
+ assert.deepEqual(sizes.native,[256,144]);
+ assert(Math.abs(sizes.top[0]-sizes.bottom[0])<1 &&
+        Math.abs(sizes.top[1]-sizes.bottom[1])<1,
+        "Dolphin and native UI must be precisely the same visible size");
+ console.log("MATCHED DISPLAY DIMENSIONS:",JSON.stringify(sizes));
  assert.equal(await page.locator(".dolphinNote,.regionlabel,.regiontitle,.softlabel,footer").count(),0,"No secondary captions or footer");
  assert.equal(await page.locator("#dolphinCaption").isVisible(),false);
  assert.equal(await page.locator("#flipperLogo").count(),1);
  assert.equal(await page.locator(".navrow button svg").count(),4,"Icon-only primary controls");
  assert.equal(await page.locator(".softrow button svg").count(),5,"Icon-only original Flipper One soft keys");
+ assert.equal(await page.locator('[data-key="view"] svg path').getAttribute("d"),"M5 7h14M5 12h14M5 17h14");
+ assert.equal(await page.locator('[data-key="edit"] svg path').getAttribute("d"),"M9 4H4v5M15 4h5v5M4 15v5h5M20 15v5h-5");
+ assert.equal(await page.locator('[data-key="run"] svg path').getAttribute("d"),"m4 12 5.5 5.5L20 6");
+ assert.equal(await page.locator("#btnApps svg rect").count(),1,"Official stacked-window app switcher");
+ assert.equal(await page.locator("#btnSelect svg circle").count(),2,"Flipper One OK button is the D-pad centre");
  assert.equal((await page.locator("#brandtext").textContent()).includes("Phone"),true);
  const live=await page.evaluate(async()=>{const r=await fetch("/phone-status");return {code:r.status,data:await r.json()};});
  assert.equal(live.code,200);

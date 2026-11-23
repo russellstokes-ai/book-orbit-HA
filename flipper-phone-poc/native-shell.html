@@ -26,17 +26,15 @@ main{width:min(100%,420px);min-height:100dvh;margin:auto;padding:13px 17px max(2
 .battery:after{content:"";position:absolute;right:-5px;top:3px;width:3px;height:5px;border-radius:0 2px 2px 0;background:#aaa}
 .battery:before{content:"";position:absolute;left:2px;top:2px;width:var(--battery-pct,0%);height:7px;background:var(--amber)}
 .battery.charging{border-color:#b9eac3}
-.brand{height:49px;display:flex;justify-content:space-between;align-items:center;gap:9px}
+.brand{height:49px;display:flex;justify-content:flex-start;align-items:center;gap:9px}
 .brandtext{display:flex;align-items:center;gap:8px;min-width:0}
 .brandlogo{width:138px;height:auto;aspect-ratio:105/12;object-fit:contain;image-rendering:auto;filter:brightness(1.06)}
 .brandword{font:italic 900 27px/1 Impact,"Arial Black",system-ui,sans-serif;letter-spacing:-.065em;transform:skewX(-9deg);color:var(--amber)}
 .logofallback{display:none;color:var(--amber);font:italic 900 28px/1 Impact,"Arial Black",sans-serif;letter-spacing:-.06em}
 .brandtext.logo-failed .brandlogo{display:none}
 .brandtext.logo-failed .logofallback{display:inline}
-.connection{width:9px;height:9px;border-radius:50%;background:#a4612d;box-shadow:0 0 0 4px #a4612d22;flex-shrink:0}
-.connection[data-active=true]{background:#a4e6b7;box-shadow:0 0 0 4px #a4e6b722}
 .dolphinwrap,.lcd{width:100%;border:0;box-shadow:none;padding:0;background:transparent}
-#dolphin{display:block;width:100%;height:auto;aspect-ratio:2/1;image-rendering:pixelated;border:0;border-radius:10px;background:var(--amber)}
+#dolphin{display:block;width:100%;height:auto;aspect-ratio:256/144;image-rendering:pixelated;border:0;border-radius:10px;background:var(--amber)}
 #panel{display:block;width:100%;height:auto;aspect-ratio:256/144;image-rendering:pixelated;border-radius:10px;touch-action:none;background:var(--amber);cursor:pointer}
 #panel:focus-visible{outline:2px solid var(--paper);outline-offset:3px}
 .tools{display:flex;flex-direction:column;gap:14px}
@@ -77,10 +75,9 @@ button:focus-visible{outline:2px solid white;outline-offset:3px}
       <span class="logofallback" aria-hidden="true">Flipper</span>
       <span class="brandword">Phone</span>
     </div>
-    <span class="connection" id="connection" data-active="false" aria-label="Connecting"></span>
   </header>
   <section class="dolphinwrap" aria-label="Official stock Flipper Zero Dolphin animation">
-    <canvas id="dolphin" width="128" height="64" role="img" aria-label="Original Dolphin animation"></canvas>
+    <canvas id="dolphin" width="256" height="144" role="img" aria-label="Original Dolphin animation"></canvas>
     <span id="dolphinCaption" aria-hidden="true"></span>
   </section>
   <section class="lcd" aria-label="Native Flipper One interface">
@@ -90,17 +87,17 @@ button:focus-visible{outline:2px solid white;outline-offset:3px}
   <span id="modeLabel"></span><span id="runtimeStatus"></span><span id="message" role="status"></span>
   <nav class="tools" aria-label="Flipper One touch controls">
     <div class="navrow">
-      <button id="btnBack" aria-label="Back" title="Back"><svg viewBox="0 0 24 24"><path d="M9 5 3 11l6 6M3 11h11a6 6 0 0 1 6 6v2"/></svg></button>
-      <button id="btnApps" aria-label="Application switcher" title="Apps"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></button>
-      <button id="btnSelect" class="active" aria-label="OK Select" title="OK"><svg viewBox="0 0 24 24"><path d="m3 12 6 6L21 5"/></svg></button>
-      <button id="btnPtt" class="ptt" aria-label="Push to talk, hold" title="PTT"><svg viewBox="0 0 24 24"><rect x="5" y="7" width="9" height="15" rx="1"/><path d="M9 7V2m-1 9h3m-4 7h5M17 8c2 2 2 4 0 6m3-9c3.5 3.5 3.5 8.5 0 12"/></svg></button>
+      <button id="btnBack" aria-label="Back" title="Back"><svg viewBox="0 0 24 24"><path d="M7 8.4A8 8 0 0 1 20 12a7.5 7.5 0 0 1-7.5 7.5H9"/><path d="M10 4 4 10l6 6"/></svg></button>
+      <button id="btnApps" aria-label="Application switcher" title="Apps"><svg viewBox="0 0 24 24"><rect x="3.5" y="8" width="12.5" height="10.5" rx="1"/><path d="M8 5h12v10.5"/></svg></button>
+      <button id="btnSelect" class="active" aria-label="OK Select" title="OK"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/></svg></button>
+      <button id="btnPtt" class="ptt" aria-label="Push to talk, hold" title="PTT"><svg viewBox="0 0 24 24"><path d="M3 9v6M6 6v12M9 4v16M12 8v8M15 4v16M18 6v12M21 9v6"/></svg></button>
     </div>
     <div class="softrow">
       <button data-key="esc" aria-label="Escape" title="Escape"><svg viewBox="0 0 24 24"><path d="M5 5 19 19M19 5 5 19"/></svg></button>
-      <button data-key="view" aria-label="View" title="View"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="14" height="12" rx="1"/><path d="M8 4h13v12"/></svg></button>
+      <button data-key="view" aria-label="View" title="View"><svg viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h14"/></svg></button>
       <button data-key="power" aria-label="Power" title="Power"><svg viewBox="0 0 24 24"><path d="M12 2v10m-6-7a10 10 0 1 0 12 0"/></svg></button>
-      <button data-key="edit" aria-label="Edit" title="Edit"><svg viewBox="0 0 24 24"><path d="m4 16 12-12 4 4-12 12-5 1 1-5zm10-10 4 4"/></svg></button>
-      <button data-key="run" aria-label="Run" title="Run"><svg viewBox="0 0 24 24"><path d="m7 4 13 8-13 8z"/></svg></button>
+      <button data-key="edit" aria-label="Edit" title="Edit"><svg viewBox="0 0 24 24"><path d="M9 4H4v5M15 4h5v5M4 15v5h5M20 15v5h-5"/></svg></button>
+      <button data-key="run" aria-label="Run" title="Run"><svg viewBox="0 0 24 24"><path d="m4 12 5.5 5.5L20 6"/></svg></button>
     </div>
   </nav>
 </main>
